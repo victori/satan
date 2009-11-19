@@ -7,25 +7,27 @@ God overlaps too much in functionality with SMF where it is not practical to run
 The configuration is all done in Ruby, clean and simple.
 
 Satan.watch do |s|
-  s.name = "jetty-instances"
-  s.user = "webservd"
-  s.group = "webservd"
-  s.deamon = "java"
-  s.args = "start.jar"
-  s.debug = true
-  s.interval = 2.seconds
+  s.name = "jetty-instances"          # name of job
+  s.user = "webservd"                 # under what user
+  s.group = "webservd"                # under what group
+  s.deamon = "java"                   # deamon binary to grep for
+  s.args = "jetty"                    # look for specific arguments
+  s.debug = true                      # if to write out debug information
+  s.safe_mode = false                 # If in safe mode, satan will not kill ;-(
+  s.interval = 10.seconds             # interval to run at to collect statistics
+  s.sleep_after_kill = 1.minute       # sleep after killing, satan is tired!
   
   s.kill_if do |process|
-    process.condition(:cpu) do |cpu|
-      cpu.name = "50% CPU limit"
-      cpu.above = 50.percent
-      cpu.times = 5
+    process.condition(:cpu) do |cpu|      # on cpu condition
+      cpu.name = "50% CPU limit"          # name for job
+      cpu.above = 50.percent              # if above certain percentage
+      cpu.times = 5                       # how many times we can hit this condition before killing
     end
     
-    process.condition(:memory) do |memory|
-      memory.name = "512MB limit"
-      memory.above = 512.megabytes
-      memory.times = 5
+    process.condition(:memory) do |memory|  # on memory condition
+      memory.name = "800MB limit"           # name for job
+      memory.above = 800.megabytes          # limit for memory use
+      memory.times = 5                      # how many times we can hit this condition before killing
     end
   end
 end
