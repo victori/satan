@@ -1,0 +1,29 @@
+Automated Process Reaper for Unix Systems
+
+Satan does just one thing, kills processes. This is useful for systems such as Solaris's SMF that can do self healing. Let Satan kill while SMF revives. The Satan name is a play off of the God Monitor http://god.rubyforge.org/ 
+
+The configuration is all done in Ruby, clean and simple.
+
+Satan.watch do |s|
+  s.name = "jetty-instances"
+  s.user = "webservd"
+  s.group = "webservd"
+  s.deamon = "java"
+  s.args = "start.jar"
+  s.debug = true
+  s.interval = 2.seconds
+  
+  s.kill_if do |process|
+    process.condition(:cpu) do |cpu|
+      cpu.name = "50% CPU limit"
+      cpu.above = 50.percent
+      cpu.times = 5
+    end
+    
+    process.condition(:memory) do |memory|
+      memory.name = "512MB limit"
+      memory.above = 512.megabytes
+      memory.times = 5
+    end
+  end
+end
