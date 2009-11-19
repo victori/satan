@@ -1,0 +1,144 @@
+#!/usr/bin/env ruby
+
+require 'time'
+
+class Integer
+  def to_size
+    byte_size = self.to_i
+    if byte_size < 1024
+      "#{byte_size}KB"
+    elsif byte_size > 1024*1024
+      "#{sprintf('%0.2f',byte_size/1024/1024.0)}GB"
+    elsif byte_size > 1024
+    "#{byte_size/1024}MB"
+    end
+  end
+  def percent;self.to_i;end
+  def megabytes;self.to_i*1024;end
+  def gigabytes;self.to_i*1024*1024;end
+  def second;self.seconds;end
+  def seconds;self.to_i;end
+  def minute;self.minutes;end
+  def minutes;self.to_i*60;end
+  def hour;self.hours;end
+  def hours;self.to_i*60*60;end
+  def day;self.days;end
+  def days;self.to_i*60*60*24;end
+  def week;self.weeks;end
+  def weeks;self.to_i*60*60*24*7;end
+  def month;self.months;end
+  def months;self.to_i*60*60*24*7*4;end
+  def year;self.years;end
+  def years;self.to_i*60*60*24*7*4*12;end
+end
+
+class WatchedRule
+  attr_accessor :above,:times,:name,:kind
+  def hit(pid)
+    @hits[pid] ||= 0
+    @hits[pid]=@hits[pid]+1
+  end
+  def reset(pid)
+    @hits[pid] ||= 0
+  end
+  def initialize
+    @hits = Hash.new
+  end
+end
+
+class WatchedProcess
+  def initialize
+    @rules = Array.new
+  end
+  
+  def rules
+    @rules
+  end
+  
+  def condition(what)
+    rule = WatchedRule.new
+    yield rule
+    rule.kind = what
+    @rules << rule
+  end
+end
+
+class Satan
+  attr_accessor :name,:interval,:user,:group,:deamon,:debug,:args,:safe_mode,:sleep_after_kill,:contact
+  
+  def initialize
+    @procs = Array.new
+  end
+  
+  def procs
+    @procs
+  end
+  
+  def kill_if(&block)
+    wp = WatchedProcess.new
+    yield wp
+    @procs << wp
+  end
+  
+  def self.extract_process_info(satan,rule)
+    #puts "kind: #{rule.kind}\tProcessed #{rule.name}" if satan.debug
+    cmd = "ps -U #{satan.user} -G #{satan.group} -o pid,pcpu,rss,args | grep #{satan.deamon}"
+    `#{cmd}`.split(/\n/).each do |line|
+      out = line.split(/ /).delete_if {|arg| arg == "" or arg.nil? }
+      yield :pid=>out[0].to_i,:cpu=>out[1].to_i,:rss=>out[2].to_i,:command=>out[3..out.size].join(' '),:rule=>rule
+    end
+  end
+  
+  #pid,cpu,rss,command,rule
+  def check_process(opts)
+    rule = opts[:rule]
+    
+    if rule.kind == :memory
+      if opts[:rss] > rule.above
+        hit = rule.hit(opts[:pid])
+        p "Locked on to pid #{opts[:pid]} #{opts[:command]}" if debug
+        p "Process above memory threshold #{rule.above.to_size} / #{hit}" if debug
+        reap(rule,opts) if hit >= rule.times
+      end
+    end
+    
+    if rule.kind == :cpu
+      if opts[:cpu] > rule.above
+        hit = rule.hit(opts[:pid])
+        p "Locked on to pid #{opts[:pid]} #{opts[:command]}" if debug
+        p "Process above cpu threshold #{rule.above}% / #{hit}" if debug
+        reap(rule,opts) if hit >= rule.times
+      end
+    end
+  end
+  
+  def notify_admin(rule,opts)
+    tag = "[SATAN] Reaped Process #{opts[:pid]}"
+    `echo "#{tag} on #{Time.now.to_s}\n\nCommand:\t#{opts[:command]}\nRule:\t#{rule.name}" | mailx -s "#{tag}" #{contact}`
+    return true
+  end
+  
+  def reap(rule,opts)
+    p "Reaping process #{opts[:pid]}" if debug
+    `kill -9 #{opts[:pid]}` unless safe_mode
+    rule.reset(opts[:pid])
+    notify_admin(rule,opts) unless contact.nil? or !contact.include?('@')
+    sleep(sleep_after_kill) # sleep for a while before reaping more processes
+  end
+  
+  def self.watch(&block)
+    s = Satan.new
+    yield s
+    p "Satan is now watching"
+    loop do
+      sleep s.interval
+      s.procs.each do |p|
+        p.rules.each do |r|
+          extract_process_info(s,r) {|opts| s.check_process(opts) if s.args.nil? or opts[:command] =~ /#{s.args}/ }
+        end
+      end
+    end
+  end
+end
+
+load File.expand_path(ARGV[0])
