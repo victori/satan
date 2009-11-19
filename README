@@ -1,6 +1,8 @@
 Automated Process Reaper for Unix Systems
 
-Satan does just one thing, kills processes. This is useful for systems such as Solaris's SMF that can do self healing. Let Satan kill while SMF revives. The Satan name is a play off of the God Monitor http://god.rubyforge.org/ 
+Satan does just one thing and one thing well, kill processes. This is useful for systems such as Solaris's SMF that can do self healing. Let Satan kill while SMF revives. The Satan name is a play off of the God Monitor http://god.rubyforge.org/ 
+
+God overlaps too much in functionality with SMF where it is not practical to run on Solaris.
 
 The configuration is all done in Ruby, clean and simple.
 
