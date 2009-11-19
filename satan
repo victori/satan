@@ -141,4 +141,8 @@ class Satan
   end
 end
 
-load File.expand_path(ARGV[0])
+if ARGV[0].nil?
+  p "satan /path/to/satan.cfg"
+else
+  load File.expand_path(ARGV[0])
+end
