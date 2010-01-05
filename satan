@@ -1,6 +1,8 @@
 #!/usr/bin/env ruby
 
 require 'time'
+require 'uri'
+require 'net/http'
 
 class Integer
   def to_size
@@ -33,7 +35,7 @@ class Integer
 end
 
 class WatchedRule
-  attr_accessor :above,:times,:name,:kind
+  attr_accessor :above,:times,:name,:kind,:uri,:args
   def hit(pid)
     @hits[pid] ||= 0
     @hits[pid]=@hits[pid]+1
@@ -93,7 +95,7 @@ class Satan
   def check_process(opts)
     rule = opts[:rule]
     
-    if rule.kind == :memory
+    if rule.kind == :memory and (rule.args.nil? or opts[:command] =~ /#{rule.args}/)
       if opts[:rss] > rule.above
         hit = rule.hit(opts[:pid])
         p "Locked on to pid #{opts[:pid]} #{opts[:command]}" if debug
@@ -102,7 +104,7 @@ class Satan
       end
     end
     
-    if rule.kind == :cpu
+    if rule.kind == :cpu and (rule.args.nil? or opts[:command] =~ /#{rule.args}/)
       if opts[:cpu] > rule.above
         hit = rule.hit(opts[:pid])
         p "Locked on to pid #{opts[:pid]} #{opts[:command]}" if debug
@@ -110,6 +112,22 @@ class Satan
         reap(rule,opts) if hit >= rule.times
       end
     end
+    
+    # http rule args must be in the command so we can associate the uri to pid
+    if rule.kind == :http and opts[:command] =~ /#{rule.args}/ 
+      begin
+        uri = URI.parse(rule.uri)
+        req = Net::HTTP::Get.new(rule.uri)
+        resp = Net::HTTP.new(uri.host,uri.port).start{|http| http.request(req) }
+        raise if resp.code.to_i != 200
+      rescue
+        hit = rule.hit(opts[:pid])
+        p "Locked on to pid #{opts[:pid]} #{rule.uri}" if debug
+        p "Failed to respond with http 200 #{rule.uri} / #{hit}" if debug
+        reap(rule,opts) if hit >= rule.times
+      end
+    end
+    
   end
   
   def notify_admin(rule,opts)

@@ -8,7 +8,8 @@ Features
 
   - No dependencies aside from Ruby
   - Email notification on killed process
-  - Easy to use DSL to define reaping rules.
+  - Easy to use DSL to define reaping rules
+  - HTTP checks to reap based on non-200 response code
   
 INSTALLATION
 
@@ -24,28 +25,39 @@ HOW TO USE
 The configuration is all done in Ruby, clean and simple.
 
 Satan.watch do |s|
-  s.name = "jetty-instances"              # name of job
+  s.name = "jvm instances"                # name of job
   s.user = "webservd"                     # under what user
   s.group = "webservd"                    # under what group
   s.deamon = "java"                       # deamon binary name to grep for
-  s.args = "jetty"                        # look for specific arguments, optional
+  s.args = nil                            # globally look for specific arguments, optional
   s.debug = true                          # if to write out debug information
   s.safe_mode = false                     # If in safe mode, satan will not kill ;-(
   s.interval = 10.seconds                 # interval to run at to collect statistics
-  s.sleep_after_kill = 2.minutes          # sleep after killing, satan is tired!
+  s.sleep_after_kill = 1.minute           # sleep after killing, satan is tired!
   s.contact = "victori@fabulously40.com"  # admin contact, optional if you want email alerts
   
   s.kill_if do |process|
     process.condition(:cpu) do |cpu|      # on cpu condition
-      cpu.name = "50% CPU limit"          # name for job
+      cpu.name  = "50% CPU limit"         # name for job
+      cpu.args  = "jetty"                 # make sure this is a jetty process, optional
       cpu.above = 50.percent              # if above certain percentage
       cpu.times = 5                       # how many times we can hit this condition before killing
     end
     
     process.condition(:memory) do |memory|  # on memory condition
-      memory.name = "800MB limit"           # name for job
+      memory.name  = "800MB limit"          # name for job
+      memory.args  = "jetty"                # make sure this is a jetty process, optional
       memory.above = 800.megabytes          # limit for memory use
       memory.times = 5                      # how many times we can hit this condition before killing
+    end
+    
+    # ActiveMQ tends to die on us under heavy load so we need the power of satan!
+    process.condition(:http) do |http|                        # on http condition
+      http.name   = "HTTP ActiveMQ Check"                     # name for job
+      http.args   = "8161"                                    # look for specific app arguments
+                                                              # to associate app to URI
+      http.uri    = "http://localhost:8161/admin/queues.jsp"  # the URI
+      http.times  = 5                                         # how many times before kill
     end
   end
 end
