@@ -40,8 +40,12 @@ class WatchedRule
     @hits[pid] ||= 0
     @hits[pid]=@hits[pid]+1
   end
-  def reset(pid)
+  def miss(pid)
     @hits[pid] ||= 0
+    @hits[pid]=@hits[pid]-1 if @hits[pid] > 0 
+  end
+  def reset(pid)
+    @hits[pid] = 0
   end
   def initialize
     @hits = Hash.new
@@ -101,6 +105,8 @@ class Satan
         p "Locked on to pid #{opts[:pid]} #{opts[:command]}" if debug
         p "Process above memory threshold #{rule.above.to_size} / #{hit}" if debug
         reap(rule,opts) if hit >= rule.times
+      else
+        rule.miss(opts[:pid])
       end
     end
     
@@ -110,6 +116,8 @@ class Satan
         p "Locked on to pid #{opts[:pid]} #{opts[:command]}" if debug
         p "Process above cpu threshold #{rule.above}% / #{hit}" if debug
         reap(rule,opts) if hit >= rule.times
+      else
+        rule.miss(opts[:pid])
       end
     end
     
@@ -120,6 +128,7 @@ class Satan
         req = Net::HTTP::Get.new(rule.uri)
         resp = Net::HTTP.new(uri.host,uri.port).start{|http| http.request(req) }
         raise if resp.code.to_i != 200
+        rule.miss(opts[:pid])
       rescue
         hit = rule.hit(opts[:pid])
         p "Locked on to pid #{opts[:pid]} #{rule.uri}" if debug
